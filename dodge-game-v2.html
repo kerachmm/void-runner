@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOID RUNNER</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  :root {
+    --neon-cyan: #00ffe7;
+    --neon-pink: #ff2d78;
+    --neon-yellow: #ffe600;
+    --bg: #07050f;
+    --grid: #12102a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Press Start 2P', monospace;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, var(--grid) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, var(--grid) 40px);
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  h1 {
+    font-size: clamp(1rem, 4vw, 1.8rem);
+    color: var(--neon-cyan);
+    text-shadow: 0 0 10px var(--neon-cyan), 0 0 30px var(--neon-cyan);
+    letter-spacing: 0.3em;
+    margin-bottom: 0.4rem;
+    animation: flicker 4s infinite;
+  }
+
+  @keyframes flicker {
+    0%, 95%, 100% { opacity: 1; }
+    96% { opacity: 0.4; }
+    97% { opacity: 1; }
+    98% { opacity: 0.2; }
+    99% { opacity: 1; }
+  }
+
+  .scoreboard {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 0.6rem;
+    font-size: 0.5rem;
+    letter-spacing: 0.1em;
+  }
+
+  .score-item { color: #888; }
+  .score-item span { color: var(--neon-yellow); text-shadow: 0 0 8px var(--neon-yellow); }
+
+  #gameCanvas {
+    border: 2px solid var(--neon-cyan);
+    box-shadow: 0 0 20px var(--neon-cyan), 0 0 60px rgba(0,255,231,0.15);
+    display: block;
+    cursor: none;
+  }
+
+  /* ---- OVERLAY ---- */
+  #overlay {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    pointer-events: none;
+    width: 100%;
+    height: 100%;
+  }
+
+  .overlay-title {
+    font-size: clamp(0.55rem, 2vw, 0.9rem);
+    color: var(--neon-pink);
+    text-shadow: 0 0 12px var(--neon-pink);
+    text-align: center;
+    line-height: 2;
+  }
+
+  .big-score {
+    font-size: clamp(1.5rem, 5vw, 3rem);
+    color: var(--neon-yellow);
+    text-shadow: 0 0 20px var(--neon-yellow);
+  }
+
+  .btn {
+    pointer-events: all;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.6rem;
+    padding: 0.7rem 1.6rem;
+    background: transparent;
+    border: 2px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    text-shadow: 0 0 8px var(--neon-cyan);
+    box-shadow: 0 0 12px var(--neon-cyan);
+    cursor: pointer;
+    letter-spacing: 0.15em;
+    transition: all 0.15s;
+  }
+
+  .btn:hover, .btn:active {
+    background: var(--neon-cyan);
+    color: var(--bg);
+    text-shadow: none;
+    box-shadow: 0 0 30px var(--neon-cyan);
+  }
+
+  .btn-row { display: flex; gap: 0.8rem; pointer-events: all; }
+
+  .btn-skin {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    background: transparent;
+    border: 2px solid #ff2d78;
+    color: #ff2d78;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    transition: all 0.15s;
+  }
+  .btn-skin:hover, .btn-skin:active {
+    background: #ff2d78;
+    color: var(--bg);
+  }
+
+  .hint {
+    font-size: 0.42rem;
+    color: #444;
+    letter-spacing: 0.1em;
+    text-align: center;
+    line-height: 2.2;
+  }
+
+  .canvas-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ---- SKIN SELECTOR PANEL ---- */
+  #skinPanel {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(7,5,15,0.97);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    z-index: 10;
+    pointer-events: all;
+  }
+  #skinPanel.open { display: flex; }
+
+  .skin-title {
+    font-size: 0.7rem;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 10px var(--neon-cyan);
+    letter-spacing: 0.2em;
+    margin-bottom: 0.5rem;
+  }
+
+  .skins-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.8rem;
+    padding: 0 1rem;
+  }
+
+  .skin-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    padding: 0.6rem;
+    border: 2px solid transparent;
+    transition: all 0.15s;
+    position: relative;
+  }
+
+  .skin-card.selected { border-color: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan); }
+  .skin-card.locked { opacity: 0.4; cursor: not-allowed; }
+
+  .skin-card canvas { display: block; }
+
+  .skin-name {
+    font-size: 0.35rem;
+    color: #aaa;
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+
+  .skin-req {
+    font-size: 0.3rem;
+    color: var(--neon-pink);
+    text-align: center;
+  }
+
+  .lock-icon {
+    position: absolute;
+    top: 4px; right: 4px;
+    font-size: 0.7rem;
+    opacity: 0.7;
+  }
+
+  .skin-card.selected .skin-name { color: var(--neon-cyan); }
+
+  .btn-close {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.55rem;
+    padding: 0.6rem 1.4rem;
+    background: transparent;
+    border: 2px solid #555;
+    color: #555;
+    cursor: pointer;
+    margin-top: 0.5rem;
+    transition: all 0.15s;
+    pointer-events: all;
+  }
+  .btn-close:hover { border-color: #aaa; color: #aaa; }
+
+  /* Sound toggle */
+  #soundBtn {
+    position: fixed;
+    top: 12px; right: 16px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.5rem;
+    background: transparent;
+    border: 1px solid #333;
+    color: #555;
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    z-index: 20;
+  }
+  #soundBtn:hover { color: var(--neon-cyan); border-color: var(--neon-cyan); }
+  #soundBtn.on { color: var(--neon-cyan); border-color: var(--neon-cyan); }
+</style>
+</head>
+<body>
+
+<button id="soundBtn" class="on" onclick="toggleSound()">♪ ON</button>
+
+<h1>VOID RUNNER</h1>
+
+<div class="scoreboard">
+  <div class="score-item">SCORE <span id="scoreDisplay">0</span></div>
+  <div class="score-item">BEST <span id="bestDisplay">0</span></div>
+  <div class="score-item">NIVEL <span id="levelDisplay">1</span></div>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- SKIN PANEL -->
+  <div id="skinPanel">
+    <div class="skin-title">— SKINS —</div>
+    <div class="skins-grid" id="skinsGrid"></div>
+    <button class="btn-close" onclick="closeSkins()">VOLVER</button>
+  </div>
+
+  <!-- MAIN OVERLAY -->
+  <div id="overlay">
+    <div class="overlay-title" id="overlayTitle">VOID RUNNER</div>
+    <div class="big-score" id="overlayScore" style="display:none"></div>
+    <div id="newRecord" style="display:none;font-size:0.45rem;color:#ffe600;text-shadow:0 0 10px #ffe600;letter-spacing:0.2em;">✦ NUEVO RECORD ✦</div>
+    <div class="btn-row">
+      <button class="btn" id="startBtn" onclick="startGame()">JUGAR</button>
+      <button class="btn-skin" onclick="openSkins()">SKINS</button>
+    </div>
+    <div class="hint" id="hint">MOUSE / TOUCH para mover<br>Esquiva los obstáculos<br><span style="color:#333">Mejores puntos desbloquean skins</span></div>
+  </div>
+</div>
+
+<script>
+// =============================================
+//  AUDIO ENGINE (Web Audio API — sin archivos)
+// =============================================
+let audioCtx = null;
+let soundOn = true;
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freq, type, duration, vol = 0.15, decay = true) {
+  if (!soundOn) return;
+  try {
+    const ac = getAudio();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ac.currentTime);
+    gain.gain.setValueAtTime(vol, ac.currentTime);
+    if (decay) gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
+    osc.start(ac.currentTime);
+    osc.stop(ac.currentTime + duration);
+  } catch(e) {}
+}
+
+function sfxDodge() { playTone(220, 'sine', 0.08, 0.05); }
+
+function sfxScore() {
+  playTone(523, 'square', 0.07, 0.08);
+  setTimeout(() => playTone(659, 'square', 0.07, 0.08), 70);
+}
+
+function sfxLevelUp() {
+  [523, 659, 784, 1046].forEach((f, i) =>
+    setTimeout(() => playTone(f, 'square', 0.12, 0.1), i * 80)
+  );
+}
+
+function sfxDie() {
+  playTone(400, 'sawtooth', 0.15, 0.2);
+  setTimeout(() => playTone(200, 'sawtooth', 0.25, 0.2), 100);
+  setTimeout(() => playTone(100, 'sawtooth', 0.3, 0.2), 250);
+}
+
+function sfxSelect() { playTone(880, 'sine', 0.1, 0.1); }
+function sfxLocked() { playTone(150, 'sawtooth', 0.12, 0.15); }
+
+function toggleSound() {
+  soundOn = !soundOn;
+  const btn = document.getElementById('soundBtn');
+  btn.textContent = soundOn ? '♪ ON' : '♪ OFF';
+  btn.className = soundOn ? 'on' : '';
+}
+
+// =============================================
+//  SKINS SYSTEM
+// =============================================
+const SKINS = [
+  {
+    id: 'cyan',
+    name: 'CYBER',
+    req: 0,
+    color: '#00ffe7',
+    trailColor: '#00ffe7',
+    draw(ctx, x, y, r, pulse, frame) {
+      // Outer ring
+      ctx.strokeStyle = 'rgba(0,255,231,0.3)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r * pulse * 1.6, 0, Math.PI*2); ctx.stroke();
+      // Core
+      ctx.fillStyle = '#00ffe7';
+      ctx.shadowColor = '#00ffe7'; ctx.shadowBlur = 20;
+      ctx.beginPath(); ctx.arc(x, y, r * pulse, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.shadowBlur = 5;
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
+    }
+  },
+  {
+    id: 'fire',
+    name: 'FUEGO',
+    req: 30,
+    color: '#ff6a00',
+    trailColor: '#ff4400',
+    draw(ctx, x, y, r, pulse, frame) {
+      // Flare petals
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI * 2 / 6) * i + frame * 0.08;
+        const px = x + Math.cos(angle) * r * 1.3;
+        const py = y + Math.sin(angle) * r * 1.3;
+        ctx.fillStyle = i % 2 === 0 ? '#ff6a00' : '#ffe600';
+        ctx.shadowColor = '#ff6a00'; ctx.shadowBlur = 15;
+        ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.fillStyle = '#ff6a00';
+      ctx.shadowColor = '#ff6a00'; ctx.shadowBlur = 25;
+      ctx.beginPath(); ctx.arc(x, y, r * pulse, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff8';
+      ctx.beginPath(); ctx.arc(x - 2, y - 2, 3, 0, Math.PI*2); ctx.fill();
+    }
+  },
+  {
+    id: 'ghost',
+    name: 'FANTASMA',
+    req: 60,
+    color: '#b388ff',
+    trailColor: '#7c4dff',
+    draw(ctx, x, y, r, pulse, frame) {
+      ctx.globalAlpha = 0.55 + 0.2 * Math.sin(frame * 0.1);
+      ctx.fillStyle = '#b388ff';
+      ctx.shadowColor = '#b388ff'; ctx.shadowBlur = 30;
+      ctx.beginPath(); ctx.arc(x, y, r * pulse * 1.2, 0, Math.PI*2); ctx.fill();
+      // ghost tail
+      for (let i = 1; i <= 3; i++) {
+        ctx.globalAlpha = 0.15 * (4 - i) * Math.sin(frame * 0.05 + i);
+        ctx.beginPath(); ctx.arc(x, y + i * 4, r * 0.6, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // eyes
+      ctx.fillStyle = '#1a0040';
+      ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.arc(x - 3, y - 1, 2, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 3, y - 1, 2, 0, Math.PI*2); ctx.fill();
+    }
+  },
+  {
+    id: 'star',
+    name: 'ESTRELLA',
+    req: 100,
+    color: '#ffe600',
+    trailColor: '#ffaa00',
+    draw(ctx, x, y, r, pulse, frame) {
+      // Star shape
+      ctx.fillStyle = '#ffe600';
+      ctx.shadowColor = '#ffe600'; ctx.shadowBlur = 20;
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const angle = (Math.PI / 5) * i - Math.PI / 2 + frame * 0.04;
+        const rad = i % 2 === 0 ? r * pulse * 1.3 : r * pulse * 0.5;
+        const px = x + Math.cos(angle) * rad;
+        const py = y + Math.sin(angle) * rad;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff8';
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
+    }
+  },
+  {
+    id: 'ice',
+    name: 'HIELO',
+    req: 150,
+    color: '#80d8ff',
+    trailColor: '#40c4ff',
+    draw(ctx, x, y, r, pulse, frame) {
+      // Snowflake
+      ctx.strokeStyle = '#80d8ff';
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = '#80d8ff'; ctx.shadowBlur = 18;
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i + frame * 0.02;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + Math.cos(angle) * r * pulse * 1.4, y + Math.sin(angle) * r * pulse * 1.4);
+        ctx.stroke();
+        // branch
+        const bx = x + Math.cos(angle) * r * 0.7;
+        const by = y + Math.sin(angle) * r * 0.7;
+        ctx.beginPath();
+        ctx.moveTo(bx + Math.cos(angle + Math.PI/2) * 4, by + Math.sin(angle + Math.PI/2) * 4);
+        ctx.lineTo(bx - Math.cos(angle + Math.PI/2) * 4, by - Math.sin(angle + Math.PI/2) * 4);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#80d8ff';
+      ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI*2); ctx.fill();
+    }
+  },
+  {
+    id: 'void',
+    name: '??? VOID',
+    req: 250,
+    color: '#ff2d78',
+    trailColor: '#ff2d78',
+    draw(ctx, x, y, r, pulse, frame) {
+      // Black hole effect
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r * pulse * 2);
+      grad.addColorStop(0, '#000');
+      grad.addColorStop(0.5, '#3d0020');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x, y, r * pulse * 2, 0, Math.PI*2); ctx.fill();
+      // Orbit rings
+      for (let i = 0; i < 3; i++) {
+        ctx.strokeStyle = `rgba(255,45,120,${0.6 - i * 0.15})`;
+        ctx.lineWidth = 1;
+        ctx.shadowColor = '#ff2d78'; ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.ellipse(x, y, r * pulse * (1 + i * 0.5),
+          r * pulse * (0.4 + i * 0.2),
+          frame * (0.03 + i * 0.02), 0, Math.PI*2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#000';
+      ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, Math.PI*2); ctx.fill();
+    }
+  }
+];
+
+let currentSkinId = localStorage.getItem('vr_skin') || 'cyan';
+let unlockedSkins = JSON.parse(localStorage.getItem('vr_unlocked') || '["cyan"]');
+
+function getSkin() { return SKINS.find(s => s.id === currentSkinId) || SKINS[0]; }
+
+// =============================================
+//  CANVAS + GAME SETUP
+// =============================================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const scoreDisplay = document.getElementById('scoreDisplay');
+const bestDisplay = document.getElementById('bestDisplay');
+const levelDisplay = document.getElementById('levelDisplay');
+const overlayTitle = document.getElementById('overlayTitle');
+const overlayScore = document.getElementById('overlayScore');
+const newRecord = document.getElementById('newRecord');
+const startBtn = document.getElementById('startBtn');
+const hint = document.getElementById('hint');
+
+const W = Math.min(window.innerWidth - 40, 480);
+const H = Math.min(window.innerHeight - 180, 640);
+canvas.width = W;
+canvas.height = H;
+
+let state = 'idle';
+let score = 0, best = parseInt(localStorage.getItem('vr_best') || '0');
+let frame = 0, level = 1, lastLevel = 1;
+let player, obstacles, particles, stars;
+let mouseX = W / 2, mouseY = H * 0.75;
+let animId;
+let lastScoreMilestone = 0;
+
+bestDisplay.textContent = best;
+
+// =============================================
+//  UNLOCK CHECK
+// =============================================
+function checkUnlocks(score) {
+  let unlocked = false;
+  SKINS.forEach(s => {
+    if (score >= s.req && !unlockedSkins.includes(s.id)) {
+      unlockedSkins.push(s.id);
+      unlocked = true;
+      showUnlockFlash(s.name);
+    }
+  });
+  if (unlocked) localStorage.setItem('vr_unlocked', JSON.stringify(unlockedSkins));
+}
+
+function showUnlockFlash(name) {
+  const el = document.createElement('div');
+  el.style.cssText = `
+    position:fixed;top:20%;left:50%;transform:translateX(-50%);
+    font-family:'Press Start 2P',monospace;font-size:0.55rem;
+    color:#ffe600;text-shadow:0 0 15px #ffe600;
+    background:rgba(7,5,15,0.9);border:2px solid #ffe600;
+    padding:0.8rem 1.5rem;z-index:100;text-align:center;line-height:2;
+    animation:fadeOut 2.5s forwards;pointer-events:none;
+  `;
+  el.innerHTML = `✦ SKIN DESBLOQUEADA ✦<br>${name}`;
+  const style = document.createElement('style');
+  style.textContent = '@keyframes fadeOut{0%{opacity:1;top:20%}80%{opacity:1}100%{opacity:0;top:15%}}';
+  document.head.appendChild(style);
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+  sfxLevelUp();
+}
+
+// =============================================
+//  SKIN PANEL UI
+// =============================================
+function buildSkinsGrid() {
+  const grid = document.getElementById('skinsGrid');
+  grid.innerHTML = '';
+  SKINS.forEach(skin => {
+    const isUnlocked = unlockedSkins.includes(skin.id);
+    const isSelected = skin.id === currentSkinId;
+    const card = document.createElement('div');
+    card.className = `skin-card ${isSelected ? 'selected' : ''} ${!isUnlocked ? 'locked' : ''}`;
+
+    // Mini preview canvas
+    const c = document.createElement('canvas');
+    c.width = 50; c.height = 50;
+    const cx = c.getContext('2d');
+    cx.fillStyle = '#07050f';
+    cx.fillRect(0, 0, 50, 50);
+    if (isUnlocked) {
+      cx.save();
+      skin.draw(cx, 25, 25, 10, 1, 30);
+      cx.restore();
+    } else {
+      cx.fillStyle = '#333';
+      cx.beginPath(); cx.arc(25, 25, 10, 0, Math.PI*2); cx.fill();
+    }
+
+    const name = document.createElement('div');
+    name.className = 'skin-name';
+    name.textContent = skin.name;
+
+    const req = document.createElement('div');
+    req.className = 'skin-req';
+    req.textContent = skin.req === 0 ? 'GRATIS' : `≥ ${skin.req} pts`;
+
+    if (!isUnlocked) {
+      const lock = document.createElement('div');
+      lock.className = 'lock-icon';
+      lock.textContent = '🔒';
+      card.appendChild(lock);
+    }
+
+    card.appendChild(c);
+    card.appendChild(name);
+    card.appendChild(req);
+
+    card.onclick = () => {
+      if (!isUnlocked) { sfxLocked(); return; }
+      sfxSelect();
+      currentSkinId = skin.id;
+      localStorage.setItem('vr_skin', skin.id);
+      buildSkinsGrid();
+    };
+    grid.appendChild(card);
+  });
+}
+
+function openSkins() {
+  sfxSelect();
+  buildSkinsGrid();
+  document.getElementById('skinPanel').classList.add('open');
+}
+
+function closeSkins() {
+  sfxSelect();
+  document.getElementById('skinPanel').classList.remove('open');
+}
+
+// =============================================
+//  GAME INIT
+// =============================================
+function initStars() {
+  stars = Array.from({length: 80}, () => ({
+    x: Math.random() * W, y: Math.random() * H,
+    r: Math.random() * 1.5,
+    speed: 0.2 + Math.random() * 0.5,
+    a: Math.random()
+  }));
+}
+
+function initGame() {
+  score = 0; frame = 0; level = 1; lastLevel = 1; lastScoreMilestone = 0;
+  player = { x: W/2, y: H*0.75, r: 10 };
+  obstacles = []; particles = [];
+  initStars();
+}
+
+// =============================================
+//  OBSTACLE SPAWNER
+// =============================================
+function spawnObstacle() {
+  const types = ['block', 'spike', 'wall'];
+  const type = types[Math.floor(Math.random() * types.length)];
+  const speed = 2 + level * 0.5 + Math.random() * 1.5;
+
+  if (type === 'block') {
+    const w = 30 + Math.random() * 80;
+    obstacles.push({ type, x: Math.random() * (W - w), y: -40, w, h: 18, speed, color: '#ff2d78' });
+  } else if (type === 'spike') {
+    const n = 3 + Math.floor(Math.random() * 4);
+    const spacing = W / n;
+    for (let i = 0; i < n; i++) {
+      if (Math.random() > 0.4)
+        obstacles.push({ type, x: i * spacing + spacing/2, y: -20, r: 8, speed, color: '#ffe600' });
+    }
+  } else {
+    const gap = 80 + Math.random() * 60;
+    const gapX = 40 + Math.random() * (W - 80 - gap);
+    obstacles.push({ type: 'block', x: 0, y: -15, w: gapX, h: 14, speed, color: '#00ffe7' });
+    obstacles.push({ type: 'block', x: gapX + gap, y: -15, w: W - gapX - gap, h: 14, speed, color: '#00ffe7' });
+  }
+}
+
+// =============================================
+//  PARTICLES
+// =============================================
+function burst(x, y, color, n = 12) {
+  for (let i = 0; i < n; i++) {
+    const angle = (Math.PI * 2 * i) / n + Math.random() * 0.5;
+    const speed = 1 + Math.random() * 4;
+    particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      life: 1, decay: 0.03 + Math.random() * 0.04, r: 2 + Math.random() * 3, color });
+  }
+}
+
+function emitTrail(x, y) {
+  const skin = getSkin();
+  particles.push({
+    x, y, vx: (Math.random() - 0.5) * 0.4, vy: Math.random() * 0.3,
+    life: 0.65, decay: 0.06, r: 3 + Math.random() * 2,
+    color: skin.trailColor, isTrail: true
+  });
+}
+
+// =============================================
+//  COLLISION
+// =============================================
+function circleRect(cx, cy, cr, rx, ry, rw, rh) {
+  const nearX = Math.max(rx, Math.min(cx, rx + rw));
+  const nearY = Math.max(ry, Math.min(cy, ry + rh));
+  const dx = cx - nearX, dy = cy - nearY;
+  return dx*dx + dy*dy < cr * cr;
+}
+
+// =============================================
+//  UPDATE
+// =============================================
+function update() {
+  frame++;
+  score += 0.05;
+  level = 1 + Math.floor(score / 20);
+  scoreDisplay.textContent = Math.floor(score);
+  levelDisplay.textContent = level;
+
+  // Level up sound
+  if (level > lastLevel) { sfxLevelUp(); lastLevel = level; }
+
+  // Score milestone sound
+  const milestone = Math.floor(score / 10);
+  if (milestone > lastScoreMilestone && score > 5) {
+    sfxScore(); lastScoreMilestone = milestone;
+    checkUnlocks(Math.floor(score));
+  }
+
+  // Spawn
+  const spawnRate = Math.max(25, 60 - level * 4);
+  if (frame % spawnRate === 0) spawnObstacle();
+
+  // Stars
+  stars.forEach(s => {
+    s.y += s.speed;
+    if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+  });
+
+  // Player movement
+  player.x += (mouseX - player.x) * 0.12;
+  player.y += (mouseY - player.y) * 0.12;
+  player.x = Math.max(player.r, Math.min(W - player.r, player.x));
+  player.y = Math.max(player.r, Math.min(H - player.r, player.y));
+
+  if (frame % 2 === 0) emitTrail(player.x, player.y);
+
+  // Obstacles
+  obstacles.forEach(o => o.y += o.speed);
+  obstacles = obstacles.filter(o => o.y < H + 60);
+
+  // Collision detection
+  for (const o of obstacles) {
+    let hit = false;
+    if (o.type === 'block') {
+      hit = circleRect(player.x, player.y, player.r - 2, o.x, o.y, o.w, o.h);
+    } else if (o.type === 'spike') {
+      const dx = player.x - o.x, dy = player.y - o.y;
+      hit = dx*dx + dy*dy < (player.r + o.r - 3) ** 2;
+    }
+    if (hit) {
+      sfxDie();
+      burst(player.x, player.y, getSkin().color, 20);
+      burst(player.x, player.y, '#ff2d78', 12);
+      checkUnlocks(Math.floor(score));
+      die(); return;
+    }
+  }
+
+  // Particles
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    p.life -= p.decay;
+    if (!p.isTrail) p.vy += 0.08;
+  });
+  particles = particles.filter(p => p.life > 0);
+}
+
+// =============================================
+//  DRAW
+// =============================================
+function draw() {
+  ctx.fillStyle = 'rgba(7,5,15,0.85)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  stars.forEach(s => {
+    ctx.save();
+    ctx.globalAlpha = s.a * 0.8;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.life * (p.isTrail ? 0.4 : 0.9);
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = p.isTrail ? 5 : 10;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (p.isTrail ? 0.8 : 1), 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Obstacles
+  obstacles.forEach(o => {
+    ctx.save();
+    ctx.shadowColor = o.color; ctx.shadowBlur = 12;
+    ctx.fillStyle = o.color;
+    if (o.type === 'block') {
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(o.x + 2, o.y + 2, o.w - 4, 3);
+    } else if (o.type === 'spike') {
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(o.x - o.r, o.y); ctx.lineTo(o.x + o.r, o.y);
+      ctx.moveTo(o.x, o.y - o.r); ctx.lineTo(o.x, o.y + o.r);
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+
+  // Player skin
+  const skin = getSkin();
+  const pulse = 1 + 0.08 * Math.sin(frame * 0.15);
+  ctx.save();
+  skin.draw(ctx, player.x, player.y, player.r, pulse, frame);
+  ctx.restore();
+
+  // Milestone flash
+  if (Math.floor(score) % 10 === 0 && frame % 6 < 3 && score > 5) {
+    ctx.save();
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ffe600';
+    ctx.globalAlpha = 0.7;
+    ctx.fillText('+' + Math.floor(score / 10) * 10, player.x + 15, player.y - 15);
+    ctx.restore();
+  }
+}
+
+// =============================================
+//  LOOP + STATE MACHINE
+// =============================================
+function loop() {
+  if (state !== 'playing') return;
+  update(); draw();
+  animId = requestAnimationFrame(loop);
+}
+
+function startGame() {
+  getAudio(); // unlock audio context on first gesture
+  initGame();
+  state = 'playing';
+  overlay.style.display = 'none';
+  loop();
+}
+
+function die() {
+  state = 'dead';
+  cancelAnimationFrame(animId);
+  const isNewRecord = Math.floor(score) > best;
+  if (isNewRecord) {
+    best = Math.floor(score);
+    localStorage.setItem('vr_best', best);
+    bestDisplay.textContent = best;
+  }
+  draw();
+  overlayTitle.textContent = '— GAME OVER —';
+  overlayScore.style.display = 'block';
+  overlayScore.textContent = Math.floor(score);
+  newRecord.style.display = isNewRecord ? 'block' : 'none';
+  startBtn.textContent = 'REINTENTAR';
+  hint.style.display = 'none';
+  overlay.style.display = 'flex';
+}
+
+// =============================================
+//  INPUT
+// =============================================
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.touches[0].clientX - rect.left;
+  mouseY = e.touches[0].clientY - rect.top;
+}, { passive: false });
+
+canvas.addEventListener('touchstart', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.touches[0].clientX - rect.left;
+  mouseY = e.touches[0].clientY - rect.top;
+});
+
+// =============================================
+//  IDLE ANIMATION
+// =============================================
+initStars();
+player = { x: W/2, y: H*0.75, r: 10 };
+obstacles = []; particles = [];
+
+function idleLoop() {
+  if (state !== 'idle') return;
+  frame++;
+  stars.forEach(s => { s.y += s.speed * 0.4; if (s.y > H) { s.y = 0; s.x = Math.random()*W; } });
+  if (frame % 3 === 0) emitTrail(W/2 + Math.sin(frame*0.03)*60, H*0.75 + Math.cos(frame*0.02)*30);
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= p.decay; });
+  particles = particles.filter(p => p.life > 0);
+
+  ctx.fillStyle = 'rgba(7,5,15,0.8)';
+  ctx.fillRect(0, 0, W, H);
+  stars.forEach(s => {
+    ctx.save(); ctx.globalAlpha = s.a*0.5; ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+  });
+  particles.forEach(p => {
+    ctx.save(); ctx.globalAlpha = p.life * 0.35;
+    ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 4;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*0.7,0,Math.PI*2); ctx.fill(); ctx.restore();
+  });
+  const ix = W/2 + Math.sin(frame*0.03)*60;
+  const iy = H*0.75 + Math.cos(frame*0.02)*30;
+  player.x = ix; player.y = iy;
+  const skin = getSkin();
+  ctx.save();
+  skin.draw(ctx, ix, iy, 10, 1 + 0.1*Math.sin(frame*0.1), frame);
+  ctx.restore();
+  requestAnimationFrame(idleLoop);
+}
+idleLoop();
+</script>
+</body>
+</html>
